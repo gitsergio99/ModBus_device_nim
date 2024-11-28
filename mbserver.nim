@@ -1,4 +1,5 @@
 import modbusutil
+#import asyncdispatch
 
 type
     ModBus_Device* = object
@@ -17,10 +18,13 @@ type
         allowed_di:seq[array[0..1,int]] = @[[0,65536]] 
         allowing_di:bool = false # if false allowed_di no matter
 
+
+
 proc set_hregs*(mb:var ModBus_Device,adr:int,val:seq[uint16])  =
     #set holding registers directly
     for i in 0..val.len-1:
         mb.hregs[adr+i] = val[i]
+
 proc set_iregs*(mb:var ModBus_Device,adr:int,val:seq[uint16])  =
     #set input registers directly
     for i in 0..val.len-1:
@@ -34,15 +38,28 @@ proc set_di*(mb:var ModBus_Device,adr:int,val:seq[bool])  =
     for i in 0..val.len-1:
         mb.di[adr+i] = val[i]
 
-proc get_hregs*(mb: ModBus_Device,adr:int):uint16  =
-    #get holding registers directly
-    return mb.hregs[adr]
-proc get_iregs*(mb: ModBus_Device,adr:int):uint16 =
-    #get input registers directly
-    return mb.iregs[adr]
-proc get_coils*(mb: ModBus_Device,adr:int):bool  =
-        #get coils  directly
-    return mb.coils[adr]
-proc get_di*(mb:ModBus_Device,adr:int):bool  =
-        #get discret inputs registers directly
-    return mb.di[adr]
+# get regs data directly from ModBus device
+proc `hregs`*(self:var ModBus_Device,adr:int,quantity:int):seq[uint16] =
+    var res:seq[uint16] = @[]
+    for i in adr..adr+quantity-1:
+        res.add(self.hregs[i])
+    return res
+
+proc `iregs`*(self:var ModBus_Device,adr:int,quantity:int):seq[uint16] =
+    var res:seq[uint16] = @[]
+    for i in adr..adr+quantity-1:
+        res.add(self.iregs[i])
+    return res
+
+
+proc `coils`*(self:var ModBus_Device,adr:int,quantity:int):seq[bool] =
+    var res:seq[bool] = @[]
+    for i in adr..adr+quantity-1:
+        res.add(self.coils[i])
+    return res
+
+proc `di`*(self:var ModBus_Device,adr:int,quantity:int):seq[bool] =
+    var res:seq[bool] = @[]
+    for i in adr..adr+quantity-1:
+        res.add(self.coils[i])
+    return res
