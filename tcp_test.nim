@@ -8,7 +8,7 @@ var
 
 proc prClient(client: AsyncSocket) {.async.} =
     while true:
-        let line = await client.recvLine()
+        let line = await client.recv(5)
         echo line.toHex.parseHexStr.toSeq()
         log.log(lvlInfo,line.toHex())
         if line.len == 0: break
