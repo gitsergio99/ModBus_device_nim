@@ -4,6 +4,7 @@ import modbusutil
 
 type
     ModBus_Device* = object
+        modbus_adr:uint8 = 1
         hregs*:array[0..65535,uint16]
         iregs*:array[0..65535,uint16]
         coils*:array[0..65535,bool]
@@ -19,9 +20,17 @@ type
         allowed_di:seq[array[0..1,int]] = @[[0,65536]] 
         allowing_di:bool = false # if false allowed_di no matter
 #set and get procs for regs memory
+
 template sets* [T] (regs:T,adr:int,val:untyped): untyped =
     for i in 0..val.len-1:
         regs[adr+i] = val[i]
 
 template gets* [T] (regs:T,adr:int,quantity:int): untyped =
     regs[adr..adr+quantity-1]
+
+proc `modbus_adr=`*(self: var ModBus_Device,adr:uint8) =
+    self.modbus_adr = adr
+
+proc `modbus_adr`*(self:ModBus_Device):uint8 =
+    self.modbus_adr
+
