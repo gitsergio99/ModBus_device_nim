@@ -205,6 +205,7 @@ proc read_write_pdu_f23* (r_adr:uint16,r_quantity:uint16,w_adr:uint16,w_quantity
     res.add(cast_u16(i))
   return res  
 
+
 #transform seq of chars to 16bit regs
 proc seq_of_chars_to_hold_regs*(rgs:seq[char]):seq[int16] = 
     var
