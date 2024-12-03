@@ -1,8 +1,5 @@
-import std/strutils
-import sequtils
+import std/[strutils,parseutils,math,algorithm,sequtils]
 import macros
-import std/parseutils
-import std/math
 
 type 
     mb_function* {.pure.}  = enum 
@@ -284,6 +281,7 @@ proc bools_pack_to_bytes*(bls:seq[bool]):seq[char] =
       #echo fmt"num_bit is {j} , str is {temp_str}"
       j = j + 1
     else:
+      temp_str.reverse()
       tmp = parseBin(temp_str,parsed)
       res.add(cast_c(parsed))
       temp_str = ""
@@ -295,6 +293,7 @@ proc bools_pack_to_bytes*(bls:seq[bool]):seq[char] =
       for n in (j..7):
         #echo fmt"n is {n} and tmp_str{temp_str}"
         temp_str = temp_str & "0"
+      temp_str.reverse()
       tmp = parseBin(temp_str,parsed)
       res.add(cast_c(parsed))
       temp_str = ""

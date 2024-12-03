@@ -64,7 +64,7 @@ proc char_adr_to_int*(c1:char,c2:char): int =
     #temp_str.toHex.fromHex[:uint16]
     return int(temp_str.toHex.fromHex[:uint16])
 
-proc check_reg_access(self:ModBus_Device,reg:int,q:int): bool =
+proc check_reg_access(self:ModBus_Device,reg:int,q:int,region:int): bool =
     return true
 
 
@@ -87,21 +87,66 @@ proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
         quan:int = 0
     if tmp_adr == cast_c(self.modbus_adr):
         if tmp_fn in supported_fn:
+            reg_adr = char_adr_to_int(ask_data[8],ask_data[9])
+            quan = char_adr_to_int(ask_data[10],ask_data[11])
+            outer_seq.add(ask_data[0..3])
             case tmp_fn
             of '\x03':
-                reg_adr = char_adr_to_int(ask_data[8],ask_data[9])
-                quan = char_adr_to_int(ask_data[10],ask_data[11])
-                if check_reg_access(self,reg_adr,quan):
+                if check_reg_access(self,reg_adr,quan,3):
                     let h_regs_g:seq[int16] = self.hregs.gets(reg_adr,quan)
                     let byte_count:uint8 = uint8(quan)*2
-                    let tcp_bytes:uint16 = uint16(quan)*2 + 3
-                    outer_seq.add(ask_data[0..3])
+                    let tcp_bytes:uint16 = uint16(quan)*2 + 3                 
                     outer_seq.add(cast_u16(tcp_bytes))
                     outer_seq.add(tmp_adr)
                     outer_seq.add(tmp_fn)
                     outer_seq.add(cast_c(byte_count))
                     outer_seq.add(seq_int16_to_seq_chr(h_regs_g))
-                apply(outer_seq, proc(c:char) = outer_str.add(c))
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+                else:
+                    outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
+            of '\x04':
+                if check_reg_access(self,reg_adr,quan,4):
+                    let iregs_g:seq[int16] = self.iregs.gets(reg_adr,quan)
+                    let byte_count:uint8 = uint8(quan)*2
+                    let tcp_bytes:uint16 = uint16(quan)*2 + 3
+                    outer_seq.add(cast_u16(tcp_bytes))
+                    outer_seq.add(tmp_adr)
+                    outer_seq.add(tmp_fn)
+                    outer_seq.add(cast_c(byte_count))
+                    outer_seq.add(seq_int16_to_seq_chr(iregs_g))
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+                else:
+                    outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
+            of '\x01':
+                if check_reg_access(self,reg_adr,quan,1):
+                    let coils_g:seq[bool] = self.coils.gets(reg_adr,quan)
+                    let bytes_of_coils:seq[char] = bools_pack_to_bytes(coils_g)
+                    let byte_count:uint8 = uint8(bytes_of_coils.len)
+                    let tcp_bytes:uint16 = uint16(byte_count) + 3
+                    outer_seq.add(cast_u16(tcp_bytes))
+                    outer_seq.add(tmp_adr)
+                    outer_seq.add(tmp_fn)
+                    outer_seq.add(cast_c(byte_count))
+                    outer_seq.add(bytes_of_coils)
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+                else:
+                    outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
+            of '\x02':
+                if check_reg_access(self,reg_adr,quan,2):
+                    let di_g:seq[bool] = self.di.gets(reg_adr,quan)
+                    let bytes_of_di:seq[char] = bools_pack_to_bytes(di_g)
+                    let byte_count:uint8 = uint8(bytes_of_di.len)
+                    let tcp_bytes:uint16 = uint16(byte_count) + 3
+                    outer_seq.add(cast_u16(tcp_bytes))
+                    outer_seq.add(tmp_adr)
+                    outer_seq.add(tmp_fn)
+                    outer_seq.add(cast_c(byte_count))
+                    outer_seq.add(bytes_of_di)
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+                else:
+                    outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
+
+
             else:
                 outer_str = ""
         else:

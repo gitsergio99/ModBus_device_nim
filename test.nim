@@ -1,5 +1,5 @@
 import mbserver
-import std/[math,sequtils,strutils]
+import std/[strutils,parseutils,math,algorithm,sequtils]
 import modbusutil
 #import asyncdispatch
 var
@@ -7,6 +7,10 @@ var
     msg:string
     chr:seq[char] = @['\x00','\x00','\xEF','\x09']
     i:seq[int16] = @[10,0,16,452,8833,2]
+    bin_str = "11000000"
+    parsed:uint8
+    res:int
+
 plc1.hregs.sets(0,@[int16(10),int16(20),int16(30),int16(40),int16(50),int16(60)])
 plc1.coils.sets(5,@[true,true,true,true,true])
 #set_hregs(plc1,0,@[uint16(10),uint16(20),uint16(30),uint16(40),uint16(50),uint16(60)])
@@ -20,3 +24,7 @@ echo msg
 echo "".len
 echo char_adr_to_int(chr[3],chr[2])
 echo seq_int16_to_seq_chr(i)
+#bin_str.reverse()
+res = parseBin(bin_str,parsed)
+echo bin_str
+echo parsed
