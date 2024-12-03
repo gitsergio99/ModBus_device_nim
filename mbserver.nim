@@ -1,5 +1,5 @@
 import modbusutil
-import std/[sequtils,strutils]
+import std/[sequtils,strutils,strformat]
 #import asyncdispatch
 
 
@@ -43,6 +43,7 @@ proc `rtu=`*(self: var ModBus_Device,s:bool) =
 proc `rtu`*(self:ModBus_Device):bool =
     self.rtu
 
+# modbus error message for tcp transport
 proc tcp_error_response(mbap:seq[char],adr:char,fn:char,err:char): string =
     var
         temp_resp:seq[char] = @[]
@@ -55,7 +56,7 @@ proc tcp_error_response(mbap:seq[char],adr:char,fn:char,err:char): string =
     apply(temp_resp,proc(it:char) = res.add(it))
     return res
 
-
+# two char to int
 proc char_adr_to_int*(c1:char,c2:char): int =
     var
         temp_str:string =""
@@ -64,10 +65,25 @@ proc char_adr_to_int*(c1:char,c2:char): int =
     #temp_str.toHex.fromHex[:uint16]
     return int(temp_str.toHex.fromHex[:uint16])
 
+proc chars_val_to_int16*(ch:seq[char]): seq[int16] =
+    var
+        res:seq[int16] = @[]
+        temp_str:string = ""
+    for i in 0..int(ch.len/2-1):
+        temp_str.add(ch[i*2])
+        temp_str.add(ch[i*2+1])
+        res.add(temp_str.toHex.fromHex[:int16])
+        temp_str =""
+    return res
+
+
+
+
+# check what address in modbus device allowed 
 proc check_reg_access(self:ModBus_Device,reg:int,q:int,region:int): bool =
     return true
 
-
+# sequance of int16 to sequance of chars
 proc seq_int16_to_seq_chr*(i:seq[int16]):seq[char] =
     var out_seq:seq[char] = @[]
     for x in i:
@@ -75,7 +91,7 @@ proc seq_int16_to_seq_chr*(i:seq[int16]):seq[char] =
     return out_seq
 
 #if our device have tcp transport
-proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
+proc response_tcp(self: var ModBus_Device, ask_data:seq[char]): string =
     var
         supported_fn:array[0..9,char] = ['\x01','\x02','\x03','\x04','\x05','\x06','\x0F','\x10','\x16','\x17']
         mbap_strater:seq[char] = ask_data[0..4]
@@ -91,7 +107,7 @@ proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
             quan = char_adr_to_int(ask_data[10],ask_data[11])
             outer_seq.add(ask_data[0..3])
             case tmp_fn
-            of '\x03':
+            of '\x03': #read holding registers from modbus device
                 if check_reg_access(self,reg_adr,quan,3):
                     let h_regs_g:seq[int16] = self.hregs.gets(reg_adr,quan)
                     let byte_count:uint8 = uint8(quan)*2
@@ -104,7 +120,7 @@ proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
                     apply(outer_seq, proc(c:char) = outer_str.add(c))
                 else:
                     outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
-            of '\x04':
+            of '\x04': #read input registers from modbus device
                 if check_reg_access(self,reg_adr,quan,4):
                     let iregs_g:seq[int16] = self.iregs.gets(reg_adr,quan)
                     let byte_count:uint8 = uint8(quan)*2
@@ -117,7 +133,7 @@ proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
                     apply(outer_seq, proc(c:char) = outer_str.add(c))
                 else:
                     outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
-            of '\x01':
+            of '\x01': #read coils from modbus device
                 if check_reg_access(self,reg_adr,quan,1):
                     let coils_g:seq[bool] = self.coils.gets(reg_adr,quan)
                     let bytes_of_coils:seq[char] = bools_pack_to_bytes(coils_g)
@@ -131,7 +147,7 @@ proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
                     apply(outer_seq, proc(c:char) = outer_str.add(c))
                 else:
                     outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
-            of '\x02':
+            of '\x02': #read discret inputs from modbus device
                 if check_reg_access(self,reg_adr,quan,2):
                     let di_g:seq[bool] = self.di.gets(reg_adr,quan)
                     let bytes_of_di:seq[char] = bools_pack_to_bytes(di_g)
@@ -145,20 +161,27 @@ proc response_tcp(self:ModBus_Device,ask_data:seq[char]): string =
                     apply(outer_seq, proc(c:char) = outer_str.add(c))
                 else:
                     outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
-
-
+            of '\x05': # set coil in modbus device
+                if check_reg_access(self,reg_adr,1,1):
+                    if quan == 0 or quan == 65280:
+                        self.coils.sets(reg_adr,@[quan != 0])
+                        outer_seq = ask_data
+                        apply(outer_seq, proc(c:char) = outer_str.add(c))
+                    else:
+                        outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x03')
+                else:
+                    outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x02')
+            of '\x06': # write to holding register in modbus device
+                if check_reg_access(self,reg_adr,1,3):
+                    self.hregs.sets(reg_adr,chars_val_to_int16(ask_data[10..11]))
+                    outer_seq = ask_data
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
             else:
                 outer_str = ""
         else:
             outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x01')
-            #outer_seq.add(mbap_strater)
-            #outer_seq.add('\x03')
-            #outer_seq.add(tmp_adr)
-            #outer_seq.add(cast_c(cast[uint8](tmp_fn)+128))
-            #outer_seq.add('\x01')
-            #apply(outer_seq,proc(it:char) = outer_str.add(it))
     else:
-        outer_str = "\c\L"
+        outer_str = ""
     
     return outer_str
 
@@ -168,7 +191,7 @@ proc response_rtu(self:ModBus_Device,ask_data:seq[char]): string =
     return outer_str
 
 
-method response*(self:ModBus_Device,ask_data:seq[char]): string =
+method response*(self:var ModBus_Device,ask_data:seq[char]): string =
     if self.rtu == false:
         return response_tcp(self,ask_data)
     else:

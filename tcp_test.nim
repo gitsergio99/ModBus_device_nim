@@ -33,8 +33,6 @@ proc prClient(client: AsyncSocket) {.async.} =
         #log.log(lvlInfo,line.toHex())
         if line.len == 0: break
         await client.send(resp)
-
-
 proc serv () {.async.} =
     #clients = @[]
     var server = newAsyncSocket()
