@@ -76,9 +76,6 @@ proc chars_val_to_int16*(ch:seq[char]): seq[int16] =
         temp_str =""
     return res
 
-
-
-
 # check what address in modbus device allowed 
 proc check_reg_access(self:ModBus_Device,reg:int,q:int,region:int): bool =
     return true
