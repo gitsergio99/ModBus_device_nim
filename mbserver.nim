@@ -1,5 +1,5 @@
 import modbusutil
-import std/[sequtils,strutils,strformat]
+import std/[sequtils,strutils,strformat,bitops]
 #import asyncdispatch
 
 
@@ -171,6 +171,40 @@ proc response_tcp(self: var ModBus_Device, ask_data:seq[char]): string =
             of '\x06': # write to holding register in modbus device
                 if check_reg_access(self,reg_adr,1,3):
                     self.hregs.sets(reg_adr,chars_val_to_int16(ask_data[10..11]))
+                    outer_seq = ask_data
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+            of '\x0F': # write to coils in modbus device
+                if check_reg_access(self,reg_adr,quan,1):
+                    let last_el:int = 12 + int(cast[uint8](ask_data[12]))
+                    self.coils.sets(reg_adr,bytes_to_seq_of_bools(ask_data[13..last_el],quan))
+                    outer_seq = ask_data[0..11]
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+            of  '\x10': # write to holding registers in modbus device
+                if check_reg_access(self,reg_adr,quan,3):
+                    let last_el:int = 12 + int(cast[uint8](ask_data[12]))
+                    self.hregs.sets(reg_adr,chars_val_to_int16(ask_data[13..last_el]))
+                    outer_seq = ask_data[0..11]
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+            of  '\x17': # read/write holding registers in modbus device
+                if check_reg_access(self,reg_adr,quan,3):
+                    let h_regs_g:seq[int16] = self.hregs.gets(reg_adr,quan)
+                    let byte_count:uint8 = uint8(quan)*2
+                    let tcp_bytes:uint16 = uint16(quan)*2 + 3                 
+                    outer_seq.add(cast_u16(tcp_bytes))
+                    outer_seq.add(tmp_adr)
+                    outer_seq.add(tmp_fn)
+                    outer_seq.add(cast_c(byte_count))
+                    outer_seq.add(seq_int16_to_seq_chr(h_regs_g))
+                    apply(outer_seq, proc(c:char) = outer_str.add(c))
+                    let last_el:int = 16 + int(cast[uint8](ask_data[16]))
+                    self.hregs.sets(reg_adr,chars_val_to_int16(ask_data[17..last_el]))
+            of '\x16': # write mask holding registers in modbus device
+                if check_reg_access(self,reg_adr,quan,3):
+                    let h_r:int16 = self.hregs.gets(reg_adr,1)[0]
+                    let and_mask:int16 = chars_val_to_int16(ask_data[10..11])[0]
+                    let or_mask:int16 = chars_val_to_int16(ask_data[12..13])[0]
+                    #let masked_reg:int16 = bitor(bitand(h_r,and_mask),bitand(or_mask,not and_mask))
+                    self.hregs.sets(reg_adr,@[bitor(bitand(h_r,and_mask),bitand(or_mask,not and_mask))])
                     outer_seq = ask_data
                     apply(outer_seq, proc(c:char) = outer_str.add(c))
             else:
