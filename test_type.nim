@@ -9,26 +9,29 @@ type
     Bool_regs* = ref object of Mb_ram
         ram_part*:seq[bool]
     
-template sets* [T] (self:T,val:untyped): untyped =
+template sets* [T] (self:T,st_adr:uint16,val:untyped): untyped =
     var
-        last_index:int = 0
-    if self.ram_size < val.len:
-        last_index = int(self.ram_size - 1)
-        echo "out of index"
-    else:
-        last_index = val.len - 1
-    for i in 0..last_index:
-        self.ram_part[i] = val[i]
+        last_index:uint16 = 0
+        start_index:uint16 = 0
+        val_len:uint16 = uint16(val.len)
+    if (st_adr >= self.start_address) and (st_adr <= self.start_address + self.ram_size-1):
+        start_index = st_adr - self.start_address
+        if (val_len + start_index - self.start_address) <= self.ram_size:
+            last_index = start_index + val_len - 1
+            self.ram_part[start_index..last_index] = val
 
-template gets* [T] (self:T,quantity:int): untyped =
+template gets* [T] (self:T,st_adr:uint16,quantity:uint16): untyped =
     var
-        last_index:int = 0
-    if self.ram_size < quantity:
-        last_index = int(self.ram_size - 1)
-    else:
-        last_index = quantity - 1
-    self.ram_part[0..last_index]
-        
+        start_index:uint16 = 0
+        last_index:uint16 = 0
+    if (st_adr >= self.start_address) and (st_adr <= self.start_address + self.ram_size-1):
+        start_index = st_adr - self.start_address
+        if quantity + start_index > self.ram_size - 1:
+            last_index = self.ram_size - 1
+        else:
+            last_index = start_index + quantity-1
+    self.ram_part[int(start_index)..int(last_index)]  
+
 proc `start_address=`(self:Mb_ram,st_ad:uint16) =
     self.start_address  = st_ad
     
@@ -49,5 +52,6 @@ var
 
 hregs = initInt_regs(0,5)
 #hregs.sets(@[int16(0),int16(1),int16(2),int16(3),int16(4)])
+hregs.sets(uint16(0),@[int16(1),int16(2),int16(3),int16(4),int16(5)])
 
-echo hregs.gets(8)
+echo hregs.gets(3,4)
