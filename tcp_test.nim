@@ -1,5 +1,5 @@
 import std/[asyncnet, asyncdispatch,logging,strutils,sequtils,strformat]
-import  mbserver
+import  mbtcpdevicefull
 var
     clients {.threadvar.}:seq[AsyncSocket]
     log = newFileLogger("tcp_log.log",fmtStr ="[$time] - $app - $levelname:",lvlAll)
