@@ -1,5 +1,5 @@
 import modbusutil
-import std/[sequtils,strutils,strformat,bitops,asyncnet, asyncdispatch]
+import std/[sequtils,strutils,strformat,bitops,asyncnet, asyncdispatch,net]
 #import asyncdispatch
 
 type
@@ -185,8 +185,41 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
     
     return outer_str
 
-    
-proc prClient(client: AsyncSocket, plc1: ptr) {.async.} =
+proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
+    var
+        tmp:seq[char] = @[]
+        resp:string = ""
+        ask:seq[char] = @[]
+        bytes_to_get:int
+    let socket = newSocket()
+    socket.bindAddr(Port(port))
+    socket.listen()
+
+# You can then begin accepting connections using the `accept` procedure.
+    var client: Socket
+    var address = ""
+    while true:
+        socket.acceptAddr(client, address)
+        let line = client.recv(6)
+        tmp = line.toHex.parseHexStr.toSeq()
+        bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
+        let line2 = client.recv(bytes_to_get)
+        echo line2.toHex.parseHexStr.toSeq()
+        ask = tmp
+        ask.add(line2.toHex.parseHexStr.toSeq())
+        echo fmt"ask adr is {ask[6]} . ASK is {ask}"
+        resp = plc.response(ask)
+        echo resp.toHex.parseHexStr.toSeq()
+        #log.log(lvlInfo,line.toHex())
+        client.send(resp)
+        client.close()
+        
+        
+
+        #echo "Client connected from: ", address , " message is ", line
+
+
+proc prClient(plc:ptr,client: AsyncSocket) {.async.} =
     var
         tmp:seq[char] = @[]
         resp:string = ""
@@ -201,28 +234,38 @@ proc prClient(client: AsyncSocket, plc1: ptr) {.async.} =
         ask = tmp
         ask.add(line2.toHex.parseHexStr.toSeq())
         echo fmt"ask adr is {ask[6]} . ASK is {ask}"
-        resp = plc1[].response(ask)
+        resp = plc[].response(ask)
         echo resp.toHex.parseHexStr.toSeq()
         #log.log(lvlInfo,line.toHex())
         if line.len == 0: break
         await client.send(resp)
 
-proc serv (prt:int,adr:string,plc: ptr) {.async.} =
-    #clients = @[]
+
+proc run_srv_asynch* (plc:ptr,port:int,ip_adr="") {.async.} =
+    var
+        tmp:seq[char] = @[]
+        resp:string = ""
+        ask:seq[char] = @[]
+        bytes_to_get:int
+        line:string
     var server = newAsyncSocket()
     server.setSockOpt(OptReuseAddr, true)
-    server.bindAddr(Port(prt),adr)
+    server.bindAddr(Port(502))
     server.listen()
     while true:
         let client = await server.accept()
-        #clients.add client
-        asyncCheck prClient(client, plc)
-
-
-
-
-proc run_tcp_modbus_device*(plc: ptr,port:int,ip_adr:string = "") =
-    asyncCheck serv(port,ip_adr,plc)
-    runForever()
-
-    
+        asyncCheck prClient(plc,client)
+       
+       #[  line = await client.recv(6)
+        tmp = line.toHex.parseHexStr.toSeq()
+        bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
+        let line2 = await client.recv(bytes_to_get)
+        echo line2.toHex.parseHexStr.toSeq()
+        ask = tmp
+        ask.add(line2.toHex.parseHexStr.toSeq())
+        echo fmt"ask adr is {ask[6]} . ASK is {ask}"
+        resp = plc[].response(ask)
+        echo resp.toHex.parseHexStr.toSeq()
+        #log.log(lvlInfo,line.toHex())
+        if line.len == 0: break
+        await client.send(resp) ]#
