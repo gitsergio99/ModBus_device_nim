@@ -194,8 +194,6 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
     let socket = newSocket()
     socket.bindAddr(Port(port))
     socket.listen()
-
-# You can then begin accepting connections using the `accept` procedure.
     var client: Socket
     var address = ""
     while true:
@@ -204,19 +202,12 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         tmp = line.toHex.parseHexStr.toSeq()
         bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
         let line2 = client.recv(bytes_to_get)
-        echo line2.toHex.parseHexStr.toSeq()
+
         ask = tmp
         ask.add(line2.toHex.parseHexStr.toSeq())
-        echo fmt"ask adr is {ask[6]} . ASK is {ask}"
         resp = plc.response(ask)
-        echo resp.toHex.parseHexStr.toSeq()
-        #log.log(lvlInfo,line.toHex())
         client.send(resp)
         client.close()
-        
-        
-
-        #echo "Client connected from: ", address , " message is ", line
 
 
 proc prClient(plc:ptr,client: AsyncSocket) {.async.} =
@@ -230,12 +221,12 @@ proc prClient(plc:ptr,client: AsyncSocket) {.async.} =
         tmp = line.toHex.parseHexStr.toSeq()
         bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
         let line2 = await client.recv(bytes_to_get)
-        echo line2.toHex.parseHexStr.toSeq()
+        #echo line2.toHex.parseHexStr.toSeq()
         ask = tmp
         ask.add(line2.toHex.parseHexStr.toSeq())
-        echo fmt"ask adr is {ask[6]} . ASK is {ask}"
+        #echo fmt"ask adr is {ask[6]} . ASK is {ask}"
         resp = plc[].response(ask)
-        echo resp.toHex.parseHexStr.toSeq()
+        #echo resp.toHex.parseHexStr.toSeq()
         #log.log(lvlInfo,line.toHex())
         if line.len == 0: break
         await client.send(resp)
@@ -255,17 +246,3 @@ proc run_srv_asynch* (plc:ptr,port:int,ip_adr="") {.async.} =
     while true:
         let client = await server.accept()
         asyncCheck prClient(plc,client)
-       
-       #[  line = await client.recv(6)
-        tmp = line.toHex.parseHexStr.toSeq()
-        bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
-        let line2 = await client.recv(bytes_to_get)
-        echo line2.toHex.parseHexStr.toSeq()
-        ask = tmp
-        ask.add(line2.toHex.parseHexStr.toSeq())
-        echo fmt"ask adr is {ask[6]} . ASK is {ask}"
-        resp = plc[].response(ask)
-        echo resp.toHex.parseHexStr.toSeq()
-        #log.log(lvlInfo,line.toHex())
-        if line.len == 0: break
-        await client.send(resp) ]#
