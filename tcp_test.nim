@@ -1,5 +1,6 @@
-import std/[asyncnet, asyncdispatch,logging,strutils,sequtils,strformat]
+import std/[asyncnet, asyncdispatch,logging,strutils,sequtils,strformat,os]
 import  mbtcpdevicefull
+import taskpools
 var
     clients {.threadvar.}:seq[AsyncSocket]
     log = newFileLogger("tcp_log.log",fmtStr ="[$time] - $app - $levelname:",lvlAll)
@@ -7,11 +8,16 @@ var
     resp:string
 
 
-plc1.modbus_adr=3
+plc1.modbus_adr=1
 plc1.hregs.sets(0,@[int16(10),int16(20),int16(30),int16(40),int16(50),int16(60),int16(70),int16(80),int16(90),int16(100)])
 plc1.iregs.sets(0,@[int16(15),int16(25),int16(35),int16(45),int16(55),int16(65),int16(75),int16(85),int16(95),int16(105)])
 plc1.coils.sets(0,@[true,false,true,false,true,false,true,false,true,false])
 plc1.di.sets(0,@[true,true,true,false,false,true,true,true,true,true,true,true,true])
+
+
+
+
+
 
 proc prClient(client: AsyncSocket) {.async.} =
     var
@@ -39,13 +45,26 @@ proc serv () {.async.} =
     server.setSockOpt(OptReuseAddr, true)
     server.bindAddr(Port(502))
     server.listen()
-
     while true:
         let client = await server.accept()
         #clients.add client
         asyncCheck prClient(client)
 
 
-asyncCheck serv()
-runForever()
-        
+
+proc modbus_thread() =
+    asyncCheck serv()
+    runForever()
+
+proc main_loop() = 
+    var
+        #ntreads = countProcessors()
+        tp = Taskpool.new(num_threads = 4)
+        hr:seq[int16] = @[]
+    spawn(tp,modbus_thread())
+    while true:
+        hr = plc1.hregs.gets(0,30)
+        echo fmt"curren state is {hr}"
+        sleep(2000)
+
+main_loop()
