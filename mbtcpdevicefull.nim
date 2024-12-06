@@ -1,5 +1,5 @@
 import modbusutil
-import std/[sequtils,strutils,strformat,bitops,asyncnet, asyncdispatch,net]
+import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net]
 #import asyncdispatch
 
 type
@@ -64,10 +64,6 @@ proc chars_val_to_int16*(ch:seq[char]): seq[int16] =
         res.add(temp_str.toHex.fromHex[:int16])
         temp_str =""
     return res
-
-# check what address in modbus device allowed 
-proc check_reg_access(self:ModBus_Device,reg:int,q:int,region:int): bool =
-    return true
 
 # sequance of int16 to sequance of chars
 proc seq_int16_to_seq_chr*(i:seq[int16]):seq[char] =
