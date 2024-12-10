@@ -1,8 +1,9 @@
 import modbusutil
-import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net,logging,times,strformat]
+import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net,logging,times,strformat,marshal,streams,os]
 
 type
     ModBus_Device* = object
+        device_name:string = "plc1"
         logging:bool = false
         modbus_adr:uint8 = 1
         auto_save_state:bool = false
@@ -20,6 +21,27 @@ template sets* [T] (regs:T,adr:int,val:untyped): untyped =
 template gets* [T] (regs:T,adr:int,quantity:int): untyped =
     regs[adr..adr+quantity-1]
 
+# setter and getter of modbus device name
+proc `device_name=`*(self: var ModBus_Device,name:string) =
+    self.device_name = name
+
+proc `device_name`*(self:ModBus_Device):string =
+    self.device_name
+
+proc save_state*(self:ModBus_Device) =
+    var
+        file_name:string = self.device_name&"_state.json"
+        strm:FileStream = newFileStream(file_name,fmWrite)
+    store(strm,self)
+    strm.close()
+
+proc load_state*(self: var ModBus_Device) =
+    var
+        file_name:string = self.device_name&"_state.json"
+    if fileExists(file_name):
+        let strm = newFileStream(file_name,fmRead)
+        load(strm,self)
+    
 # setter and getter of modbus device address
 proc `modbus_adr=`*(self: var ModBus_Device,adr:uint8) =
     self.modbus_adr = adr
