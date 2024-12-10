@@ -114,21 +114,11 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
                 outer_seq.add(cast_c(byte_count))
                 outer_seq.add(seq_int16_to_seq_chr(regs_g))
                 apply(outer_seq, proc(c:char) = outer_str.add(c))
-#[            of '\x04': #read input registers from modbus device
-                let iregs_g:seq[int16] = self.iregs.gets(reg_adr,quan)
-                let byte_count:uint8 = uint8(quan)*2
-                let tcp_bytes:uint16 = uint16(quan)*2 + 3
-                outer_seq.add(cast_u16(tcp_bytes))
-                outer_seq.add(tmp_adr)
-                outer_seq.add(tmp_fn)
-                outer_seq.add(cast_c(byte_count))
-                outer_seq.add(seq_int16_to_seq_chr(iregs_g))
-                apply(outer_seq, proc(c:char) = outer_str.add(c))]#
             of '\x01', '\x02': #read coils from modbus device
                 if tmp_fn == '\x01':
-                    let d_g = self.coils.gets(reg_adr,quan)
+                    d_g = self.coils.gets(reg_adr,quan)
                 else:
-                    let d_g = self.di.gets(reg_adr,quan)
+                    d_g = self.di.gets(reg_adr,quan)
                 let bytes_of_d:seq[char] = bools_pack_to_bytes(d_g)
                 let byte_count:uint8 = uint8(bytes_of_d.len)
                 let tcp_bytes:uint16 = uint16(byte_count) + 3
@@ -138,17 +128,6 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
                 outer_seq.add(cast_c(byte_count))
                 outer_seq.add(bytes_of_d)
                 apply(outer_seq, proc(c:char) = outer_str.add(c))
-#[            of '\x02': #read discret inputs from modbus device
-                let di_g:seq[bool] = self.di.gets(reg_adr,quan)
-                let bytes_of_di:seq[char] = bools_pack_to_bytes(di_g)
-                let byte_count:uint8 = uint8(bytes_of_di.len)
-                let tcp_bytes:uint16 = uint16(byte_count) + 3
-                outer_seq.add(cast_u16(tcp_bytes))
-                outer_seq.add(tmp_adr)
-                outer_seq.add(tmp_fn)
-                outer_seq.add(cast_c(byte_count))
-                outer_seq.add(bytes_of_di)
-                apply(outer_seq, proc(c:char) = outer_str.add(c))]#
             of '\x05': # set coil in modbus device
                 if quan == 0 or quan == 65280:
                     self.coils.sets(reg_adr,@[quan != 0])

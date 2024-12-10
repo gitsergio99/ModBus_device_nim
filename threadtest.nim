@@ -25,7 +25,7 @@ proc main_task() =
     spawn(tp,random_task())
     while true:
         hr = plc1.hregs.gets(0,30)
-        echo fmt"curren state is {hr}"
+        #echo fmt"curren state is {hr}"
         sleep(2000)
 
 main_task()
