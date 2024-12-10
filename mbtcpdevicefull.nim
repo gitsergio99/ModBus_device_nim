@@ -204,7 +204,7 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         srv_log: FileLogger
     let socket = newSocket()
     srv_log = newFileLogger(dt_to_name_file(),fmtStr ="[$datetime] - $levelname:",lvlAll)
-    log_device(plc[].logging,srv_log,lvlInfo,"TCP ModBus device is started")
+    log_device(plc.logging,srv_log,lvlInfo,"TCP ModBus device is started")
     socket.bindAddr(Port(port))
     socket.listen()
     var client: Socket
@@ -217,9 +217,9 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         let line2 = client.recv(bytes_to_get)
         ask = tmp
         ask.add(line2.toHex.parseHexStr.toSeq())
-        log_device(plc[].logging,srv_log,lvlNotice,fmt"Request:{ask}")
+        log_device(plc.logging,srv_log,lvlNotice,fmt"Request:{ask}")
         resp = plc.response(ask)
-        log_device(plc[].logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
+        log_device(plc.logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
         client.send(resp)
         client.close()
 
