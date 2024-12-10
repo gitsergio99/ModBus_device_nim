@@ -1,6 +1,5 @@
 import modbusutil
 import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net,logging,times,strformat]
-#import asyncdispatch
 
 type
     ModBus_Device* = object
