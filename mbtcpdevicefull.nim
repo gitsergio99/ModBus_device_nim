@@ -1,5 +1,5 @@
 import modbusutil
-import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net,logging]
+import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net,logging,times,strformat]
 #import asyncdispatch
 
 type
@@ -54,6 +54,17 @@ proc tcp_error_response(mbap:seq[char],adr:char,fn:char,err:char): string =
     temp_resp.add(err)
     apply(temp_resp,proc(it:char) = res.add(it))
     return res
+
+# current time to string - file name of log
+proc dt_to_name_file():string =
+  let dt = now()
+  let year = dt.year
+  let mm = dt.month.ord
+  let dd = dt.monthday
+  let hh = dt.hour
+  let mint = dt.minute
+  let sec = dt.second
+  result = intToStr(year)&'_'&intToStr(mm)&'_'&intToStr(dd)&'_'&intToStr(hh)&'_'&intToStr(mint)&'_'&intToStr(sec)&".log"
 
 # two char to int
 proc char_adr_to_int*(c1:char,c2:char): int =
@@ -179,8 +190,9 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
     return outer_str
 
 #write log if logging enable
-proc log(en:bool,lg:FileLogger,lv:Level,msg:string):void =
-    discard
+proc log_device(en:bool,lg:FileLogger,lv:Level,msg:string):void =
+    if en:
+        lg.log(lv,msg)
 
 
 proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
@@ -189,7 +201,10 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         resp:string = ""
         ask:seq[char] = @[]
         bytes_to_get:int
+        srv_log: FileLogger
     let socket = newSocket()
+    srv_log = newFileLogger(dt_to_name_file(),fmtStr ="[$datetime] - $levelname:",lvlAll)
+    log_device(plc[].logging,srv_log,lvlInfo,"TCP ModBus device is started")
     socket.bindAddr(Port(port))
     socket.listen()
     var client: Socket
@@ -200,15 +215,16 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         tmp = line.toHex.parseHexStr.toSeq()
         bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
         let line2 = client.recv(bytes_to_get)
-
         ask = tmp
         ask.add(line2.toHex.parseHexStr.toSeq())
+        log_device(plc[].logging,srv_log,lvlNotice,fmt"Request:{ask}")
         resp = plc.response(ask)
+        log_device(plc[].logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
         client.send(resp)
         client.close()
 
 
-proc prClient(plc:ptr,client: AsyncSocket) {.async.} =
+proc prClient(plc:ptr,client: AsyncSocket,srv_log:FileLogger) {.async.} =
     var
         tmp:seq[char] = @[]
         resp:string = ""
@@ -219,13 +235,11 @@ proc prClient(plc:ptr,client: AsyncSocket) {.async.} =
         tmp = line.toHex.parseHexStr.toSeq()
         bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
         let line2 = await client.recv(bytes_to_get)
-        #echo line2.toHex.parseHexStr.toSeq()
         ask = tmp
         ask.add(line2.toHex.parseHexStr.toSeq())
-        #echo fmt"ask adr is {ask[6]} . ASK is {ask}"
+        log_device(plc[].logging,srv_log,lvlNotice,fmt"Request:{ask}")
         resp = plc[].response(ask)
-        #echo resp.toHex.parseHexStr.toSeq()
-        #log.log(lvlInfo,line.toHex())
+        log_device(plc[].logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
         if line.len == 0: break
         await client.send(resp)
 
@@ -237,10 +251,13 @@ proc run_srv_asynch* (plc:ptr,port:int,ip_adr="") {.async.} =
         ask:seq[char] = @[]
         bytes_to_get:int
         line:string
+        srv_log: FileLogger
+    srv_log = newFileLogger(dt_to_name_file(),fmtStr ="[$datetime] - $levelname:",lvlAll)
+    log_device(plc[].logging,srv_log,lvlInfo,"Async TPC ModBus device is started")
     var server = newAsyncSocket()
     server.setSockOpt(OptReuseAddr, true)
     server.bindAddr(Port(502))
     server.listen()
     while true:
         let client = await server.accept()
-        asyncCheck prClient(plc,client)
+        asyncCheck prClient(plc,client,srv_log)
