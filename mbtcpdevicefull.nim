@@ -1,14 +1,17 @@
 import modbusutil
-import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net]
+import std/[sequtils,strutils,bitops,asyncnet, asyncdispatch,net,logging]
 #import asyncdispatch
 
 type
     ModBus_Device* = object
+        logging:bool = false
         modbus_adr:uint8 = 1
+        auto_save_state:bool = false
         hregs*:array[0..65535,int16]
         iregs*:array[0..65535,int16]
         coils*:array[0..65535,bool]
         di*:array[0..65535,bool]
+
 
 #set and get procs for regs memory
 template sets* [T] (regs:T,adr:int,val:untyped): untyped =
@@ -25,12 +28,19 @@ proc `modbus_adr=`*(self: var ModBus_Device,adr:uint8) =
 proc `modbus_adr`*(self:ModBus_Device):uint8 =
     self.modbus_adr
 
-# setter and getter rtu mode of modbus device
-proc `rtu=`*(self: var ModBus_Device,s:bool) =
-    self.rtu = s
+# setter and getter logging, if true plc will be logging
+proc `logging=`*(self: var ModBus_Device,lg:bool) =
+    self.logging = lg
 
-proc `rtu`*(self:ModBus_Device):bool =
-    self.rtu
+proc `logging`*(self:ModBus_Device):bool =
+    self.logging
+
+# setter and getter logging, if true plc will be logging
+proc `auto_save_state=`*(self: var ModBus_Device,aus:bool) =
+    self.logging = aus
+
+proc `auto_save_state`*(self:ModBus_Device):bool =
+    self.auto_save_state
 
 # modbus error message for tcp transport
 proc tcp_error_response(mbap:seq[char],adr:char,fn:char,err:char): string =
@@ -83,23 +93,28 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
         outer_seq:seq[char] = @[]
         reg_adr:int = 0
         quan:int = 0
+        regs_g:seq[int16]
+        d_g:seq[bool]
     if tmp_adr == cast_c(self.modbus_adr):
         if tmp_fn in supported_fn:
             reg_adr = char_adr_to_int(ask_data[8],ask_data[9])
             quan = char_adr_to_int(ask_data[10],ask_data[11])
             outer_seq.add(ask_data[0..3])
             case tmp_fn
-            of '\x03': #read holding registers from modbus device
-                let h_regs_g:seq[int16] = self.hregs.gets(reg_adr,quan)
+            of '\x03', '\x04': #read holding or input registers from modbus device
+                if tmp_fn == '\x03':
+                    regs_g = self.hregs.gets(reg_adr,quan)
+                else:
+                    regs_g = self.iregs.gets(reg_adr,quan)
                 let byte_count:uint8 = uint8(quan)*2
                 let tcp_bytes:uint16 = uint16(quan)*2 + 3                 
                 outer_seq.add(cast_u16(tcp_bytes))
                 outer_seq.add(tmp_adr)
                 outer_seq.add(tmp_fn)
                 outer_seq.add(cast_c(byte_count))
-                outer_seq.add(seq_int16_to_seq_chr(h_regs_g))
+                outer_seq.add(seq_int16_to_seq_chr(regs_g))
                 apply(outer_seq, proc(c:char) = outer_str.add(c))
-            of '\x04': #read input registers from modbus device
+#[            of '\x04': #read input registers from modbus device
                 let iregs_g:seq[int16] = self.iregs.gets(reg_adr,quan)
                 let byte_count:uint8 = uint8(quan)*2
                 let tcp_bytes:uint16 = uint16(quan)*2 + 3
@@ -108,19 +123,22 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
                 outer_seq.add(tmp_fn)
                 outer_seq.add(cast_c(byte_count))
                 outer_seq.add(seq_int16_to_seq_chr(iregs_g))
-                apply(outer_seq, proc(c:char) = outer_str.add(c))
-            of '\x01': #read coils from modbus device
-                let coils_g:seq[bool] = self.coils.gets(reg_adr,quan)
-                let bytes_of_coils:seq[char] = bools_pack_to_bytes(coils_g)
-                let byte_count:uint8 = uint8(bytes_of_coils.len)
+                apply(outer_seq, proc(c:char) = outer_str.add(c))]#
+            of '\x01', '\x02': #read coils from modbus device
+                if tmp_fn == '\x01':
+                    let d_g = self.coils.gets(reg_adr,quan)
+                else:
+                    let d_g = self.di.gets(reg_adr,quan)
+                let bytes_of_d:seq[char] = bools_pack_to_bytes(d_g)
+                let byte_count:uint8 = uint8(bytes_of_d.len)
                 let tcp_bytes:uint16 = uint16(byte_count) + 3
                 outer_seq.add(cast_u16(tcp_bytes))
                 outer_seq.add(tmp_adr)
                 outer_seq.add(tmp_fn)
                 outer_seq.add(cast_c(byte_count))
-                outer_seq.add(bytes_of_coils)
+                outer_seq.add(bytes_of_d)
                 apply(outer_seq, proc(c:char) = outer_str.add(c))
-            of '\x02': #read discret inputs from modbus device
+#[            of '\x02': #read discret inputs from modbus device
                 let di_g:seq[bool] = self.di.gets(reg_adr,quan)
                 let bytes_of_di:seq[char] = bools_pack_to_bytes(di_g)
                 let byte_count:uint8 = uint8(bytes_of_di.len)
@@ -130,7 +148,7 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
                 outer_seq.add(tmp_fn)
                 outer_seq.add(cast_c(byte_count))
                 outer_seq.add(bytes_of_di)
-                apply(outer_seq, proc(c:char) = outer_str.add(c))
+                apply(outer_seq, proc(c:char) = outer_str.add(c))]#
             of '\x05': # set coil in modbus device
                 if quan == 0 or quan == 65280:
                     self.coils.sets(reg_adr,@[quan != 0])
@@ -180,6 +198,11 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
         outer_str = ""
     
     return outer_str
+
+#write log if logging enable
+proc log(en:bool,lg:FileLogger,lv:Level,msg:string):void =
+    discard
+
 
 proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
     var
