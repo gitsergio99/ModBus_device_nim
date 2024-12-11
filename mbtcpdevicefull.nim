@@ -58,7 +58,7 @@ proc `logging`*(self:ModBus_Device):bool =
 
 # setter and getter logging, if true plc will be logging
 proc `auto_save_state=`*(self: var ModBus_Device,aus:bool) =
-    self.logging = aus
+    self.auto_save_state = aus
 
 proc `auto_save_state`*(self:ModBus_Device):bool =
     self.auto_save_state
@@ -207,7 +207,8 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
             outer_str = tcp_error_response(mbap_strater,tmp_adr,tmp_fn,'\x01')
     else:
         outer_str = ""
-    
+    if tmp_fn in ['\x16','\x17','\x10','\x0F','\x06','\x05'] and self.auto_save_state:
+        self.save_state()
     return outer_str
 
 #write log if logging enable
