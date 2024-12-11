@@ -248,6 +248,8 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         let line2 = client.recv(bytes_to_get)
         ask = tmp
         #ask.add(line2.toHex.parseHexStr.toSeq())
+        if line2.len == bytes_to_get:
+            log_device(plc.logging,srv_log,lvlWarn,fmt"Bytes expected {bytes_to_get}, recived {line2.len}")
         ask.add(add_dead_bytes(line2,bytes_to_get))
         log_device(plc.logging,srv_log,lvlNotice,fmt"Request:{ask}")
         resp = plc.response(ask)
@@ -268,7 +270,10 @@ proc prClient(plc:ptr,client: AsyncSocket,srv_log:FileLogger) {.async.} =
         bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
         let line2 = await client.recv(bytes_to_get)
         ask = tmp
-        ask.add(line2.toHex.parseHexStr.toSeq())
+        #ask.add(line2.toHex.parseHexStr.toSeq())
+        if line2.len == bytes_to_get:
+            log_device(plc.logging,srv_log,lvlWarn,fmt"Bytes expected {bytes_to_get}, recived {line2.len}")
+        ask.add(add_dead_bytes(line2,bytes_to_get))
         log_device(plc[].logging,srv_log,lvlNotice,fmt"Request:{ask}")
         resp = plc[].response(ask)
         log_device(plc[].logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
