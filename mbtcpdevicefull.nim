@@ -216,6 +216,15 @@ proc log_device(en:bool,lg:FileLogger,lv:Level,msg:string):void =
     if en:
         lg.log(lv,msg)
 
+proc add_dead_bytes*(data:string,size:int):seq[char] =
+    var
+        cur_len:int = data.len
+        res:seq[char] = @[]
+    res.add(data.toHex.parseHexStr.toSeq())
+    while cur_len < size:
+        res.add('\x00')
+        cur_len += 1
+    return res
 
 proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
     var
@@ -238,7 +247,8 @@ proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
         bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
         let line2 = client.recv(bytes_to_get)
         ask = tmp
-        ask.add(line2.toHex.parseHexStr.toSeq())
+        #ask.add(line2.toHex.parseHexStr.toSeq())
+        ask.add(add_dead_bytes(line2,bytes_to_get))
         log_device(plc.logging,srv_log,lvlNotice,fmt"Request:{ask}")
         resp = plc.response(ask)
         log_device(plc.logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
