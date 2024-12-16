@@ -1,10 +1,12 @@
 import std/[tables,sequtils]
 import mbregtype
+import typetraits
 var
     hold_regs = initTable[int,seq[int16]]()
     expl:seq[int16] = newSeq[int16](10)
     dev1:ModBus_Device
     res:bool
+    rs: seq[bool]
 
 hold_regs.add(0, newSeq[int16](10))
 hold_regs.add(100, newSeq[int16](25))
@@ -17,3 +19,8 @@ res = dev1.hregs.sets(100,@[int16(10),int16(10)])
 echo res
 for el in dev1.hregs.pairs:
     echo el
+
+#echo dev1.hregs.mvalues.type.name
+
+dev1.coils.gets(120,3,rs)
+echo rs

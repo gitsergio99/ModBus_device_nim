@@ -9,7 +9,8 @@ type
         iregs* = initTable[int,seq[int16]]()
         coils* = initTable[int,seq[bool]]()
         di* = initTable[int,seq[bool]]()
-
+#init proc for Modbus device. For registers pattern is @[[0,10],[100,30],etc] where first number in array is start address of allowed reg
+#second number of array is quantity 
 proc initModBus_Device* (self: var ModBus_Device,name:string,log:bool,adr:uint8,save:bool,hr:seq[array[2,int]],ir:seq[array[2,int]],co:seq[array[2,int]],di:seq[array[2,int]]) =
     var
         hold = initTable[int,seq[int16]]()
@@ -41,3 +42,8 @@ template sets* [T] (regs:T,adr:int,val:untyped): untyped =
                 regs[el[0]][(adr-el[0])+i] = val[i]
             ret = true
     ret
+
+template  gets* [T] (regs:T,adr:int,qaunt:int, res:untyped): untyped =
+    for el in regs.pairs:
+        if adr >= el[0] and (adr + qaunt) <= (el[0] + el[1].len):
+            res = regs[el[0]][(adr-el[0])..(adr-el[0])+qaunt-1]
