@@ -266,3 +266,97 @@ proc response*(self: var ModBus_Device, ask_data:seq[char]): string =
     if tmp_fn in ['\x16','\x17','\x10','\x0F','\x06','\x05'] and self.auto_save_state:
         self.save_state()
     return outer_str
+
+proc log_device(en:bool,lg:FileLogger,lv:Level,msg:string):void =
+    if en:
+        lg.log(lv,msg)
+
+proc add_dead_bytes*(data:string,size:int):seq[char] =
+    var
+        cur_len:int = data.len
+        res:seq[char] = @[]
+    res.add(data.toHex.parseHexStr.toSeq())
+    while cur_len < size:
+        res.add('\x00')
+        cur_len += 1
+    return res
+
+proc run_srv_synh* (plc: var ModBus_Device,port:int,ip_adr="") {.async.} =
+    var
+        tmp:seq[char] = @[]
+        resp:string = ""
+        ask:seq[char] = @[]
+        bytes_to_get:int
+        srv_log: FileLogger
+    let socket = newSocket()
+    srv_log = newFileLogger(dt_to_name_file(),fmtStr ="[$datetime] - $levelname:",lvlAll)
+    log_device(plc.logging,srv_log,lvlInfo,"TCP ModBus device is started")
+    socket.bindAddr(Port(port))
+    socket.listen()
+    var client: Socket
+    var address = ""
+    while true:
+        socket.acceptAddr(client, address)
+        try:
+            let line = client.recv(6)
+            tmp = line.toHex.parseHexStr.toSeq()
+            bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
+            let line2 = client.recv(bytes_to_get)
+            ask = tmp
+        #ask.add(line2.toHex.parseHexStr.toSeq())
+            if line2.len != bytes_to_get:
+                log_device(plc.logging,srv_log,lvlWarn,fmt"Bytes expected {bytes_to_get}, recived {line2.len}")
+            ask.add(add_dead_bytes(line2,bytes_to_get))
+            log_device(plc.logging,srv_log,lvlNotice,fmt"Request:{ask}")
+            resp = plc.response(ask)
+            log_device(plc.logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
+            client.send(resp)
+        except CatchableError:
+            log_device(plc.logging,srv_log,lvlError,fmt"Error until data exchange:{getCurrentExceptionMsg()}")
+        client.close()
+
+
+proc prClient(plc:ptr,client: AsyncSocket,srv_log:FileLogger) {.async.} =
+    var
+        tmp:seq[char] = @[]
+        resp:string = ""
+        ask:seq[char] = @[]
+        bytes_to_get:int
+    while true:
+        try:
+            let line = await client.recv(6)
+            tmp = line.toHex.parseHexStr.toSeq()
+            bytes_to_get = char_adr_to_int(tmp[4],tmp[5])
+            let line2 = await client.recv(bytes_to_get)
+            ask = tmp
+        #ask.add(line2.toHex.parseHexStr.toSeq())
+            if line2.len != bytes_to_get:
+                log_device(plc.logging,srv_log,lvlWarn,fmt"Bytes expected {bytes_to_get}, recived {line2.len}")
+            ask.add(add_dead_bytes(line2,bytes_to_get))
+            log_device(plc[].logging,srv_log,lvlNotice,fmt"Request:{ask}")
+            resp = plc[].response(ask)
+            log_device(plc[].logging,srv_log,lvlNotice,fmt"Response:{resp.toHex.parseHexStr.toSeq()}")
+            if line.len == 0: break
+            await client.send(resp)
+        except:
+            log_device(plc.logging,srv_log,lvlError,fmt"Error until data exchange:{getCurrentExceptionMsg()}")
+            break
+
+
+proc run_srv_asynch* (plc:ptr,port:int,ip_adr="") {.async.} =
+    var
+        tmp:seq[char] = @[]
+        resp:string = ""
+        ask:seq[char] = @[]
+        bytes_to_get:int
+        line:string
+        srv_log: FileLogger
+    srv_log = newFileLogger(dt_to_name_file(),fmtStr ="[$datetime] - $levelname:",lvlAll)
+    log_device(plc[].logging,srv_log,lvlInfo,"Async TPC ModBus device is started")
+    var server = newAsyncSocket()
+    server.setSockOpt(OptReuseAddr, true)
+    server.bindAddr(Port(502))
+    server.listen()
+    while true:
+        let client = await server.accept()
+        asyncCheck prClient(plc,client,srv_log)
