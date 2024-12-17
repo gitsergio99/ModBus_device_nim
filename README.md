@@ -20,8 +20,7 @@ Lib for create TCP Modbus device.
 <br>log:bool, - logging device true or false
 <br>adr:uint8, - Modbus address of device for tcp ordinary use 1
 <br>save:bool, - autosave state of device after writing asks - true, false
-<br>hr:seq[array[2,int]], - holding registers structure like @[[0,10],[100,5]] - first array in sequence create first piece of registers 0 is start address
-<br> 10 is quantity and etc.
+<br>hr:seq[array[2,int]], - holding registers structure like @[[0,10],[100,5]] - first array in sequence create first piece of registers 0 is start address 10 is quantity and etc.
 <br>ir:seq[array[2,int]], - input registers.
 <br>co:seq[array[2,int]], - coils
 <br>di:seq[array[2,int]] - diskret inputs )
