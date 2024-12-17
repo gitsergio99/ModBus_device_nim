@@ -7,15 +7,7 @@ var
     plc1:ModBus_Device
 
 initModBus_Device(plc1,"plc1",true,uint8(1),true, @[[0,10],[100,5]], @[[0,10],[100,5]],@[[0,10],[100,5]],@[[0,10],[100,5]])
-#plc1.device_name="PLC"
-#plc1.modbus_adr=1
-#plc1.logging=true
-#plc1.auto_save_state=false
-#plc1.hregs.sets(0,@[int16(10),int16(20),int16(30),int16(40),int16(50),int16(60),int16(70),int16(80),int16(90),int16(100)])
-#plc1.iregs.sets(0,@[int16(15),int16(25),int16(35),int16(45),int16(55),int16(65),int16(75),int16(85),int16(95),int16(105)])
-#plc1.coils.sets(0,@[true,false,true,false,true,false,true,false,true,false])
-#plc1.di.sets(0,@[true,true,true,false,false,true,true,true,true,true,true,true,true])
-#plc1.load_state()
+
 var p:ptr[ModBus_Device] = plc1.addr
 
 proc random_task() =
