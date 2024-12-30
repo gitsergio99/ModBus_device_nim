@@ -1,5 +1,5 @@
 # ModBus_device_nim
-Lib for create TCP Modbus device.
+Lib to create TCP Modbus device.
 ## Supported ModBus fucntions: 
 <br>                                01 (0x01) Read Coils
 <br>                           02 (0x02) Read Discrete Inputs
